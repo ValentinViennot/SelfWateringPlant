@@ -56,10 +56,15 @@ void setup() {
 void loop() {
   switch (state) {
     case SLEEP:
-      Serial.println("Sleeping for 10 seconds");
-      delay(100);
-      Sleepy::loseSomeTime(10000);
-      state = CONTROL;
+      Serial.println("Sleep or config ?");
+      if (digitalRead(PIN_BTN)) {
+        state = CONFIG;
+      } else {
+        Serial.println("Sleeping for 10 seconds");
+        delay(100);
+        Sleepy::loseSomeTime(10000);
+        state = CONTROL;
+      }
       break;
     case WATERING:
       watering();
@@ -68,6 +73,7 @@ void loop() {
       control();
       break;
     case CONFIG:
+      Serial.println("Entering configuration...");
       initConfigLoop();
       state = CONFIG_LOW;
       break;
