@@ -44,13 +44,19 @@ void setup() {
   // Get MIN and MAX water values from EEPROM
   EEPROM.get(ADDR_MIN,MIN_WATER);
   EEPROM.get(ADDR_MAX,MAX_WATER);
-  // if MIN and MAX are already defined
-  if (MAX_WATER > 0 && MIN_WATER > MAX_WATER)
-    state = CONTROL;
-  else // Else, we begin with configuration step
-    state = CONFIG;
   // DEBUG
   Serial.begin(9600);
+  //
+  // if MIN and MAX are already defined
+  if (MAX_WATER > 0 && MIN_WATER > MAX_WATER) {
+    Serial.print("MIN: ");
+    Serial.println(MIN_WATER);
+    Serial.print("MAX: ");
+    Serial.println(MAX_WATER);
+    state = CONTROL;
+  }
+  else // Else, we begin with configuration step
+    state = CONFIG;
 }
 
 void loop() {
@@ -110,7 +116,7 @@ void loop() {
         if (MAX_WATER >= MIN_WATER) 
           state = CONFIG;
         else // if config is successful, we start the controlling process 
-          state = CONTROL;         
+          state = CONTROL;
       }
       else {
         configLoop(PIN_LED_GREEN);
