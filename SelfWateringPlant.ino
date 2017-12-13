@@ -1,3 +1,4 @@
+#include <EEPROM.h>
 #include <JeeLib.h>
 ISR(WDT_vect) { Sleepy::watchdogEvent(); } // Setup the watchdog
 
@@ -7,6 +8,9 @@ ISR(WDT_vect) { Sleepy::watchdogEvent(); } // Setup the watchdog
 #define PIN_PUMP 8
 #define PIN_BTN 4
 #define PIN_SENSOR_HYG A0
+
+#define ADDR_MIN 0
+#define ADDR_MAX (sizeof(int))
 
 enum ProgramState {
   SLEEP,
@@ -37,8 +41,14 @@ void setup() {
   pinMode(PIN_LED_GREEN, OUTPUT);
   pinMode(PIN_LED_RED, OUTPUT);
   pinMode(PIN_BTN, INPUT);
-  // We begin with configuration step
-  state = CONFIG;
+  // Get MIN and MAX water values from EEPROM
+  EEPROM.get(ADDR_MIN,MIN_WATER);
+  EEPROM.get(ADDR_MAX,MAX_WATER);
+  // if MIN and MAX are already defined
+  if (MAX_WATER > 0 && MIN_WATER > MAX_WATER)
+    state = CONTROL;
+  else // Else, we begin with configuration step
+    state = CONFIG;
   // DEBUG
   Serial.begin(9600);
 }
@@ -67,6 +77,7 @@ void loop() {
         MIN_WATER = water;
         Serial.print("MIN : ");
         Serial.println(MIN_WATER);
+        EEPROM.put(ADDR_MIN,MIN_WATER);
         digitalWrite(PIN_LED_RED, LOW);
         digitalWrite(PIN_LED_BLUE, HIGH);
         delay(3000);
@@ -84,6 +95,7 @@ void loop() {
         MAX_WATER = water;
         Serial.print("MAX : ");
         Serial.println(MAX_WATER);
+        EEPROM.put(ADDR_MAX,MAX_WATER);
         digitalWrite(PIN_LED_GREEN, LOW);
         digitalWrite(PIN_LED_BLUE, HIGH);
         delay(3000);
