@@ -1,5 +1,8 @@
+#include <EEPROM.h>
 #include <JeeLib.h>
 ISR(WDT_vect) { Sleepy::watchdogEvent(); } // Setup the watchdog
+
+// CONFIGURATION -- BEGIN
 
 #define PIN_LED_GREEN 7
 #define PIN_LED_RED 6
@@ -7,6 +10,16 @@ ISR(WDT_vect) { Sleepy::watchdogEvent(); } // Setup the watchdog
 #define PIN_PUMP 8
 #define PIN_BTN 4
 #define PIN_SENSOR_HYG A0
+
+// Number of values needed to calculate an average measure
+const unsigned int NB_MSRT = 3;
+// Watering period duration (ms)
+const unsigned long T_WATERING = 1500;//ms
+
+// CONFIGURATION -- END
+
+#define ADDR_MIN 0
+#define ADDR_MAX (sizeof(int))
 
 enum ProgramState {
   SLEEP,
@@ -18,16 +31,12 @@ enum ProgramState {
 };
 ProgramState state;
 
-// Number of values needed to calculate an average measure
-const unsigned int NB_MSRT = 3;
+// Variables
+
 // Levels
 int MIN_WATER = 0, MAX_WATER = 0, water = 0;
-
 // Last time a watering period started (ms)
 unsigned long last_watering_start = 0;
-// Watering period duration (ms)
-const unsigned long T_WATERING = 1500;//ms
-
 // Manage buttons (is pressed ? , is it the first press ?) and led blinking 
 boolean btn = false, first = false, led_blink = false;
 
@@ -37,27 +46,54 @@ void setup() {
   pinMode(PIN_LED_GREEN, OUTPUT);
   pinMode(PIN_LED_RED, OUTPUT);
   pinMode(PIN_BTN, INPUT);
-  // We begin with configuration step
-  state = CONFIG;
-  // DEBUG
+  // Get MIN and MAX water values from EEPROM
+  EEPROM.get(ADDR_MIN,MIN_WATER);
+  EEPROM.get(ADDR_MAX,MAX_WATER);
+  // if MIN and MAX are already defined
+  if (MAX_WATER > 0 && MIN_WATER > MAX_WATER) {
+    Serial.print("MIN: ");
+    Serial.println(MIN_WATER);
+    Serial.print("MAX: ");
+    Serial.println(MAX_WATER);
+    // Restart with control state
+    state = CONTROL;
+  }
+  else // Else, we begin with configuration step
+    state = CONFIG;
   Serial.begin(9600);
 }
 
 void loop() {
   switch (state) {
     case SLEEP:
-      Serial.println("Sleeping for 10 seconds");
-      delay(100);
-      Sleepy::loseSomeTime(10000);
-      state = CONTROL;
+      Serial.println("Sleep or config ?");
+      if (digitalRead(PIN_BTN)) {
+        state = CONFIG;
+      } else {
+        Serial.println("Sleeping for 10 seconds");
+        delay(100);
+        Sleepy::loseSomeTime(10000);
+        state = CONTROL;
+      }
       break;
     case WATERING:
-      watering();
+      if (digitalRead(PIN_BTN)) {
+        watering(false);
+        state = CONFIG;
+      } else {
+        watering();
+      }
       delay(500);
     case CONTROL:
-      control();
+      if (digitalRead(PIN_BTN)) {
+        watering(false);
+        state = CONFIG;
+      } else {
+        control();
+      }
       break;
     case CONFIG:
+      Serial.println("Entering configuration...");
       initConfigLoop();
       state = CONFIG_LOW;
       break;
@@ -67,6 +103,7 @@ void loop() {
         MIN_WATER = water;
         Serial.print("MIN : ");
         Serial.println(MIN_WATER);
+        EEPROM.put(ADDR_MIN,MIN_WATER);
         digitalWrite(PIN_LED_RED, LOW);
         digitalWrite(PIN_LED_BLUE, HIGH);
         delay(3000);
@@ -84,6 +121,7 @@ void loop() {
         MAX_WATER = water;
         Serial.print("MAX : ");
         Serial.println(MAX_WATER);
+        EEPROM.put(ADDR_MAX,MAX_WATER);
         digitalWrite(PIN_LED_GREEN, LOW);
         digitalWrite(PIN_LED_BLUE, HIGH);
         delay(3000);
@@ -92,7 +130,7 @@ void loop() {
         if (MAX_WATER >= MIN_WATER) 
           state = CONFIG;
         else // if config is successful, we start the controlling process 
-          state = CONTROL;         
+          state = CONTROL;
       }
       else {
         configLoop(PIN_LED_GREEN);
